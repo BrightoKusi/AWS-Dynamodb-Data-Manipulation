@@ -1,8 +1,11 @@
 import boto3
 import decimal
+import json
 
 
 from botocore.exceptions import ClientError
+from boto3.dynamodb.conditions import Key, Attr
+
 
 def get_dynamodb_client():
     dynamodb = boto3.client("dynamodb", region_name="eu-west-1", endpoint_url="http://localhost:8000")
@@ -118,8 +121,110 @@ def conditionally_update_an_item():
         print("Updated item on table conditionally!")
         print(str(respone))
 
+
+def get_item_on_table():
+    try:
+        response = get_dynamodb_resource().Table("Movies").get_item(
+            Key={
+                'year': 2015,
+                'title': "The Big New Movie"
+            }
+        )
+    except ClientError as error:
+        print(error.response['Error']['Message'])
+    else:
+        item = response['Item']
+        print("Got the item successfully!")
+        print(str(response))
+
+
+def delete_item_on_table():
+    try:
+        response = get_dynamodb_resource().Table("Movies").delete_item(
+            Key={
+                'year': 2015,
+                'title': "The Big New Movie"
+            }
+        )
+    except ClientError as error:
+        if error.response['Error']['Code'] == "ConditionalCheckFailedException":
+            print(error.response['Error']['Message'])
+        else:
+            raise
+    else:
+        print("Deleted item successfully!")
+        print(str(response))
+
+
+def insert_sample_data():
+    table = get_dynamodb_resource().Table("Movies")
+
+    with open("moviedata.json") as json_file:
+        movies = json.load(json_file, parse_float=decimal.Decimal)
+        for movie in movies:
+            year = int(movie['year'])
+            title = movie['title']
+            info = movie['info']
+
+            print("Adding movie:", year, title)
+
+            table.put_item(
+                Item={
+                    'year': year,
+                    'title': title,
+                    'info': info
+                }
+            )
+
+    print("Sample movie data inserted successfully!")
+
+
+def query_movies_released_in_1985():
+    response = get_dynamodb_resource().Table("Movies").query(
+        KeyConditionExpression=Key('year').eq(1985)
+    )
+
+    for movie in response['Items']:
+        print(movie['year'], ":", movie['title'])
+
+
+def query_movies_with_extra_conditions():
+    print("Movies from 1992 - title A-L, with genres and lead actor")
+
+    response = get_dynamodb_resource().Table("Movies").query(
+        ProjectionExpression="#yr, title, info.genres, info.actors[0]",
+        ExpressionAttributeNames={"#yr": "year"},
+        KeyConditionExpression=Key('year').eq(1992) & Key('title').between('A', 'L')
+    )
+
+    for movie in response['Items']:
+        print(str(movie))
+
+
+def scan_whole_table_for_items():
+    filter_expression = Key('year').between(1950, 1959)
+    projection_expression = "#yr, title, info.rating"
+    ean = {"#yr": "year",}
+
+    response = get_dynamodb_resource().Table("Movies").scan(
+        FilterExpression=filter_expression,
+        ProjectionExpression=projection_expression,
+        ExpressionAttributeNames=ean
+    )
+
+    for movie in response['Items']:
+        print(str(movie))
+
+
+
 if __name__ == '__main__':
-    # create_table()
-    # put_item_on_table()
+    create_table()
+    put_item_on_table()
     update_item_on_table()
     conditionally_update_an_item()
+    get_item_on_table()
+    delete_item_on_table()
+    insert_sample_data()
+    query_movies_released_in_1985()
+    query_movies_with_extra_conditions()
+    scan_whole_table_for_items()
