@@ -1,5 +1,5 @@
 import boto3
-
+import decimal
 
 def get_dynamodb_client():
     dynamodb = boto3.client("dynamodb", region_name="eu-west-1", endpoint_url="http://localhost:8000")
@@ -54,6 +54,24 @@ def create_table():
     print("Created DynamoDB table:" + str(dynamodb_table_response))
 
 
+def put_item_on_table():
+    try:
+        response = get_dynamodb_resource().Table("Movies").put_item(
+            Item={
+                'year': 2015,
+                'title': "The Big New Movie",
+                'info': {
+                    'plot': "Nothing happens at all.",
+                    'rating': decimal.Decimal(0)
+                }
+            }
+        )
+
+        print("A New Movie added to the collection successfully!")
+        print(str(response))
+    except Exception as error:
+        print(error)
 
 if __name__ == '__main__':
-    create_table()
+    # create_table()
+    put_item_on_table()
